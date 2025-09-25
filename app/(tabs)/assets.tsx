@@ -11,41 +11,64 @@ import {
   Portal,
   Dialog,
   Button,
-  Paragraph
+  Paragraph,
+  Surface,
+  Divider
 } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { assetService } from '../../services/assets';
+import { priceService, PortfolioValue } from '../../services/prices';
 import { Asset } from '../../types/asset';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AssetsScreen() {
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [portfolioValue, setPortfolioValue] = useState<PortfolioValue | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pricesLoading, setPricesLoading] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null);
   const router = useRouter();
   const theme = useTheme();
 
-  const fetchAssets = useCallback(async () => {
+  const fetchAssetsAndPrices = useCallback(async () => {
     try {
-      const data = await assetService.getAssets();
-      setAssets(data);
+      // Fetch portfolio value (includes assets with prices)
+      const portfolio = await priceService.getPortfolioValue();
+      setPortfolioValue(portfolio);
+      
+      // Also fetch basic assets for structure
+      const assetsData = await assetService.getAssets();
+      setAssets(assetsData);
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to load assets');
+      console.error('Error fetching data:', error);
+      // If price fetch fails, at least show assets
+      try {
+        const assetsData = await assetService.getAssets();
+        setAssets(assetsData);
+      } catch (assetError: any) {
+        Alert.alert('Error', assetError.message || 'Failed to load assets');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setPricesLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchAssets();
-  }, [fetchAssets]);
+  // Refresh on screen focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchAssetsAndPrices();
+    }, [])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchAssets();
+    setPricesLoading(true);
+    fetchAssetsAndPrices();
   };
 
   const handleDeletePress = (asset: Asset) => {
@@ -59,6 +82,8 @@ export default function AssetsScreen() {
     try {
       await assetService.deleteAsset(assetToDelete.id);
       setAssets(assets.filter(a => a.id !== assetToDelete.id));
+      // Refresh portfolio value
+      fetchAssetsAndPrices();
       Alert.alert('Success', 'Asset deleted successfully');
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to delete asset');
@@ -85,6 +110,10 @@ export default function AssetsScreen() {
     }).format(amount);
   };
 
+  const formatPercent = (percent: number) => {
+    return `${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`;
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -92,6 +121,11 @@ export default function AssetsScreen() {
       </View>
     );
   }
+
+  // Get asset with price data
+  const getAssetWithPrice = (asset: Asset) => {
+    return portfolioValue?.assets.find(a => a.id === asset.id);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -102,11 +136,75 @@ export default function AssetsScreen() {
         }
       >
         <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>My Assets</Text>
+          <Text variant="headlineMedium" style={styles.title}>My Portfolio</Text>
           <Text variant="bodyMedium" style={styles.subtitle}>
             {assets.length} {assets.length === 1 ? 'Asset' : 'Assets'}
           </Text>
         </View>
+
+        {/* Portfolio Summary Card */}
+        {portfolioValue && assets.length > 0 && (
+          <Card style={styles.summaryCard}>
+            <Card.Content>
+              <Text variant="titleMedium" style={styles.summaryTitle}>
+                Total Portfolio Value
+              </Text>
+              <Text variant="headlineLarge" style={styles.totalValue}>
+                {formatCurrency(portfolioValue.totalValue)}
+              </Text>
+              
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryItem}>
+                  <Text variant="bodySmall" style={styles.summaryLabel}>
+                    Total Cost
+                  </Text>
+                  <Text variant="bodyLarge">
+                    {formatCurrency(portfolioValue.totalCost)}
+                  </Text>
+                </View>
+                
+                <View style={styles.summaryItem}>
+                  <Text variant="bodySmall" style={styles.summaryLabel}>
+                    Total Gain/Loss
+                  </Text>
+                  <Text 
+                    variant="bodyLarge"
+                    style={[
+                      styles.gainLoss,
+                      { color: portfolioValue.totalGainLoss >= 0 ? '#4CAF50' : '#F44336' }
+                    ]}
+                  >
+                    {formatCurrency(portfolioValue.totalGainLoss)}
+                  </Text>
+                </View>
+                
+                <View style={styles.summaryItem}>
+                  <Text variant="bodySmall" style={styles.summaryLabel}>
+                    Return
+                  </Text>
+                  <Text 
+                    variant="bodyLarge"
+                    style={[
+                      styles.gainLoss,
+                      { color: portfolioValue.totalGainLossPercent >= 0 ? '#4CAF50' : '#F44336' }
+                    ]}
+                  >
+                    {formatPercent(portfolioValue.totalGainLossPercent)}
+                  </Text>
+                </View>
+              </View>
+              
+              {pricesLoading && (
+                <View style={styles.priceUpdateIndicator}>
+                  <ActivityIndicator size="small" />
+                  <Text variant="bodySmall" style={styles.priceUpdateText}>
+                    Updating prices...
+                  </Text>
+                </View>
+              )}
+            </Card.Content>
+          </Card>
+        )}
 
         {assets.length === 0 ? (
           <Card style={styles.emptyCard}>
@@ -121,63 +219,112 @@ export default function AssetsScreen() {
           </Card>
         ) : (
           <View style={styles.assetsList}>
-            {assets.map((asset) => (
-              <Card key={asset.id} style={styles.assetCard}>
-                <Card.Content>
-                  <View style={styles.assetHeader}>
-                    <View style={styles.assetInfo}>
-                      <View style={styles.assetTitleRow}>
-                        <Text variant="titleMedium" style={styles.assetName}>
-                          {asset.name}
+            {assets.map((asset) => {
+              const priceData = getAssetWithPrice(asset);
+              return (
+                <Card key={asset.id} style={styles.assetCard}>
+                  <Card.Content>
+                    <View style={styles.assetHeader}>
+                      <View style={styles.assetInfo}>
+                        <View style={styles.assetTitleRow}>
+                          <Text variant="titleMedium" style={styles.assetName}>
+                            {asset.name}
+                          </Text>
+                          <Chip 
+                            mode="flat" 
+                            style={[styles.typeChip, { backgroundColor: getTypeColor(asset.type) }]}
+                            textStyle={styles.chipText}
+                          >
+                            {asset.type}
+                          </Chip>
+                        </View>
+                        <Text variant="bodyLarge" style={styles.assetSymbol}>
+                          {asset.symbol}
                         </Text>
-                        <Chip 
-                          mode="flat" 
-                          style={[styles.typeChip, { backgroundColor: getTypeColor(asset.type) }]}
-                          textStyle={styles.chipText}
-                        >
-                          {asset.type}
-                        </Chip>
                       </View>
-                      <Text variant="bodyLarge" style={styles.assetSymbol}>
-                        {asset.symbol}
-                      </Text>
+                      <IconButton
+                        icon="delete"
+                        size={24}
+                        onPress={() => handleDeletePress(asset)}
+                      />
                     </View>
-                    <IconButton
-                      icon="delete"
-                      size={24}
-                      onPress={() => handleDeletePress(asset)}
-                    />
-                  </View>
-                  
-                  <View style={styles.assetDetails}>
-                    <View style={styles.detailRow}>
-                      <Text variant="bodyMedium" style={styles.detailLabel}>
-                        Quantity:
-                      </Text>
-                      <Text variant="bodyMedium" style={styles.detailValue}>
-                        {asset.quantity}
-                      </Text>
+                    
+                    <Divider style={styles.divider} />
+                    
+                    <View style={styles.assetDetails}>
+                      <View style={styles.detailRow}>
+                        <Text variant="bodyMedium" style={styles.detailLabel}>
+                          Quantity:
+                        </Text>
+                        <Text variant="bodyMedium" style={styles.detailValue}>
+                          {asset.quantity}
+                        </Text>
+                      </View>
+                      
+                      <View style={styles.detailRow}>
+                        <Text variant="bodyMedium" style={styles.detailLabel}>
+                          Purchase Price:
+                        </Text>
+                        <Text variant="bodyMedium" style={styles.detailValue}>
+                          {formatCurrency(asset.purchase_price)}
+                        </Text>
+                      </View>
+                      
+                      {priceData && (
+                        <>
+                          <View style={styles.detailRow}>
+                            <Text variant="bodyMedium" style={styles.detailLabel}>
+                              Current Price:
+                            </Text>
+                            <Text variant="bodyMedium" style={styles.detailValue}>
+                              {formatCurrency(priceData.currentPrice)}
+                            </Text>
+                          </View>
+                          
+                          <View style={styles.detailRow}>
+                            <Text variant="bodyMedium" style={styles.detailLabel}>
+                              Current Value:
+                            </Text>
+                            <Text variant="titleMedium" style={styles.detailValueBold}>
+                              {formatCurrency(priceData.currentValue)}
+                            </Text>
+                          </View>
+                          
+                          <View style={styles.detailRow}>
+                            <Text variant="bodyMedium" style={styles.detailLabel}>
+                              Gain/Loss:
+                            </Text>
+                            <Text 
+                              variant="titleMedium" 
+                              style={[
+                                styles.detailValueBold,
+                                { color: priceData.gainLoss >= 0 ? '#4CAF50' : '#F44336' }
+                              ]}
+                            >
+                              {formatCurrency(priceData.gainLoss)} ({formatPercent(priceData.gainLossPercent)})
+                            </Text>
+                          </View>
+                          
+                          {priceData.lastPriceUpdate && (
+                            <Text variant="bodySmall" style={styles.lastUpdate}>
+                              Last updated: {new Date(priceData.lastPriceUpdate).toLocaleTimeString()}
+                            </Text>
+                          )}
+                        </>
+                      )}
+                      
+                      {!priceData && (
+                        <View style={styles.noPriceContainer}>
+                          <Text variant="bodySmall" style={styles.noPriceText}>
+                            Price data unavailable
+                          </Text>
+                        </View>
+                      )}
                     </View>
-                    <View style={styles.detailRow}>
-                      <Text variant="bodyMedium" style={styles.detailLabel}>
-                        Purchase Price:
-                      </Text>
-                      <Text variant="bodyMedium" style={styles.detailValue}>
-                        {formatCurrency(asset.purchase_price)}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Text variant="bodyMedium" style={styles.detailLabel}>
-                        Total Value:
-                      </Text>
-                      <Text variant="bodyMedium" style={styles.detailValueBold}>
-                        {formatCurrency(asset.quantity * asset.purchase_price)}
-                      </Text>
-                    </View>
-                  </View>
-                </Card.Content>
-              </Card>
-            ))}
+                  </Card.Content>
+                </Card>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -235,6 +382,42 @@ const styles = StyleSheet.create({
   subtitle: {
     opacity: 0.7,
   },
+  summaryCard: {
+    margin: 16,
+    backgroundColor: '#1E88E5',
+  },
+  summaryTitle: {
+    color: 'white',
+    marginBottom: 8,
+  },
+  totalValue: {
+    color: 'white',
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  summaryItem: {
+    flex: 1,
+  },
+  summaryLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 4,
+  },
+  gainLoss: {
+    fontWeight: 'bold',
+  },
+  priceUpdateIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  priceUpdateText: {
+    marginLeft: 8,
+    color: 'rgba(255,255,255,0.7)',
+  },
   assetsList: {
     padding: 16,
     gap: 12,
@@ -261,7 +444,7 @@ const styles = StyleSheet.create({
   },
   assetSymbol: {
     opacity: 0.8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   typeChip: {
     height: 24,
@@ -271,8 +454,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  divider: {
+    marginVertical: 12,
+  },
   assetDetails: {
-    marginTop: 8,
     gap: 8,
   },
   detailRow: {
@@ -288,6 +473,19 @@ const styles = StyleSheet.create({
   detailValueBold: {
     fontWeight: 'bold',
     fontSize: 16,
+  },
+  lastUpdate: {
+    opacity: 0.5,
+    marginTop: 8,
+  },
+  noPriceContainer: {
+    marginTop: 8,
+    padding: 8,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 4,
+  },
+  noPriceText: {
+    color: '#E65100',
   },
   emptyCard: {
     margin: 16,
