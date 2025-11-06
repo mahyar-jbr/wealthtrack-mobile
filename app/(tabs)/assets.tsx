@@ -1,44 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, Alert } from 'react-native';
-import { 
-  Text, 
-  Card, 
-  FAB, 
-  IconButton, 
-  Chip, 
-  ActivityIndicator,
-  useTheme,
-  Portal,
-  Dialog,
-  Button,
-  Paragraph,
-  Surface,
-  Divider
-} from 'react-native-paper';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from 'expo-router';
+import React, { useState, useCallback } from 'react';
+import { View, StyleSheet, ScrollView, RefreshControl, Alert, TouchableOpacity } from 'react-native';
+import { Text, ActivityIndicator, IconButton, Portal, Dialog, Button } from 'react-native-paper';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { assetService } from '../../services/assets';
 import { priceService, PortfolioValue } from '../../services/prices';
 import { Asset } from '../../types/asset';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { colors } from '../../constants/theme';
 
 export default function AssetsScreen() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [portfolioValue, setPortfolioValue] = useState<PortfolioValue | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [pricesLoading, setPricesLoading] = useState(false);
   const [deleteDialogVisible, setDeleteDialogVisible] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null);
   const router = useRouter();
-  const theme = useTheme();
 
   const fetchAssetsAndPrices = useCallback(async () => {
     try {
       // Fetch portfolio value (includes assets with prices)
       const portfolio = await priceService.getPortfolioValue();
       setPortfolioValue(portfolio);
-      
+
       // Also fetch basic assets for structure
       const assetsData = await assetService.getAssets();
       setAssets(assetsData);
@@ -54,7 +38,6 @@ export default function AssetsScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
-      setPricesLoading(false);
     }
   }, []);
 
@@ -67,7 +50,6 @@ export default function AssetsScreen() {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setPricesLoading(true);
     fetchAssetsAndPrices();
   };
 
@@ -93,20 +75,12 @@ export default function AssetsScreen() {
     }
   };
 
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'CRYPTO': return '#FF6B6B';
-      case 'STOCK': return '#4ECDC4';
-      case 'ETF': return '#45B7D1';
-      case 'BOND': return '#96CEB4';
-      default: return '#95A5A6';
-    }
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     }).format(amount);
   };
 
@@ -114,242 +88,321 @@ export default function AssetsScreen() {
     return `${percent >= 0 ? '+' : ''}${percent.toFixed(2)}%`;
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  const formatNumber = (num: number) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 8
+    }).format(num);
+  };
 
   // Get asset with price data
   const getAssetWithPrice = (asset: Asset) => {
     return portfolioValue?.assets.find(a => a.id === asset.id);
   };
 
+  // Sort assets by current value (highest first)
+  const sortedAssets = [...assets].sort((a, b) => {
+    const aPrice = getAssetWithPrice(a);
+    const bPrice = getAssetWithPrice(b);
+    const aValue = aPrice?.currentValue || 0;
+    const bValue = bPrice?.currentValue || 0;
+    return bValue - aValue;
+  });
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.black} />
+          <Text style={styles.loadingText}>LOADING ASSETS...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView
-        style={styles.scrollView}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View style={styles.header}>
-          <Text variant="headlineMedium" style={styles.title}>My Portfolio</Text>
-          <Text variant="bodyMedium" style={styles.subtitle}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.greeting}>MY PORTFOLIO</Text>
+          <Text style={styles.title}>
             {assets.length} {assets.length === 1 ? 'Asset' : 'Assets'}
           </Text>
         </View>
+        <IconButton
+          icon="plus-circle-outline"
+          iconColor={colors.black}
+          size={28}
+          onPress={() => router.push('/add-asset')}
+        />
+      </View>
 
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.black}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
         {/* Portfolio Summary Card */}
         {portfolioValue && assets.length > 0 && (
-          <Card style={styles.summaryCard}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.summaryTitle}>
-                Total Portfolio Value
-              </Text>
-              <Text variant="headlineLarge" style={styles.totalValue}>
-                {formatCurrency(portfolioValue.totalValue)}
-              </Text>
-              
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryItem}>
-                  <Text variant="bodySmall" style={styles.summaryLabel}>
-                    Total Cost
-                  </Text>
-                  <Text variant="bodyLarge">
-                    {formatCurrency(portfolioValue.totalCost)}
-                  </Text>
-                </View>
-                
-                <View style={styles.summaryItem}>
-                  <Text variant="bodySmall" style={styles.summaryLabel}>
-                    Total Gain/Loss
-                  </Text>
-                  <Text 
-                    variant="bodyLarge"
-                    style={[
-                      styles.gainLoss,
-                      { color: portfolioValue.totalGainLoss >= 0 ? '#4CAF50' : '#F44336' }
-                    ]}
-                  >
-                    {formatCurrency(portfolioValue.totalGainLoss)}
-                  </Text>
-                </View>
-                
-                <View style={styles.summaryItem}>
-                  <Text variant="bodySmall" style={styles.summaryLabel}>
-                    Return
-                  </Text>
-                  <Text 
-                    variant="bodyLarge"
-                    style={[
-                      styles.gainLoss,
-                      { color: portfolioValue.totalGainLossPercent >= 0 ? '#4CAF50' : '#F44336' }
-                    ]}
-                  >
-                    {formatPercent(portfolioValue.totalGainLossPercent)}
-                  </Text>
-                </View>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>TOTAL VALUE</Text>
+            <Text style={styles.totalValue}>
+              {formatCurrency(portfolioValue.totalValue)}
+            </Text>
+
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryItem}>
+                <Text style={styles.metricLabel}>COST BASIS</Text>
+                <Text style={styles.metricValue}>
+                  {formatCurrency(portfolioValue.totalCost)}
+                </Text>
               </View>
-              
-              {pricesLoading && (
-                <View style={styles.priceUpdateIndicator}>
-                  <ActivityIndicator size="small" />
-                  <Text variant="bodySmall" style={styles.priceUpdateText}>
-                    Updating prices...
-                  </Text>
-                </View>
-              )}
-            </Card.Content>
-          </Card>
+
+              <View style={styles.summaryDivider} />
+
+              <View style={styles.summaryItem}>
+                <Text style={styles.metricLabel}>GAIN/LOSS</Text>
+                <Text
+                  style={[
+                    styles.metricValue,
+                    { color: portfolioValue.totalGainLoss >= 0 ? colors.profit : colors.loss }
+                  ]}
+                >
+                  {formatCurrency(portfolioValue.totalGainLoss)}
+                </Text>
+              </View>
+
+              <View style={styles.summaryDivider} />
+
+              <View style={styles.summaryItem}>
+                <Text style={styles.metricLabel}>RETURN</Text>
+                <Text
+                  style={[
+                    styles.metricValue,
+                    { color: portfolioValue.totalGainLossPercent >= 0 ? colors.profit : colors.loss }
+                  ]}
+                >
+                  {formatPercent(portfolioValue.totalGainLossPercent)}
+                </Text>
+              </View>
+            </View>
+          </View>
         )}
 
+        {/* Empty State */}
         {assets.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Card.Content style={styles.emptyContent}>
-              <Text variant="headlineSmall" style={styles.emptyTitle}>
-                No Assets Yet
-              </Text>
-              <Text variant="bodyMedium" style={styles.emptyText}>
-                Start building your portfolio by adding your first asset
-              </Text>
-            </Card.Content>
-          </Card>
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIcon}>
+              <IconButton
+                icon="chart-line-variant"
+                size={48}
+                iconColor={colors.textTertiary}
+              />
+            </View>
+            <Text style={styles.emptyTitle}>NO ASSETS YET</Text>
+            <Text style={styles.emptyText}>
+              Start building your portfolio by adding your first investment
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyButton}
+              onPress={() => router.push('/add-asset')}
+            >
+              <Text style={styles.emptyButtonText}>ADD YOUR FIRST ASSET</Text>
+            </TouchableOpacity>
+          </View>
         ) : (
+          /* Assets List */
           <View style={styles.assetsList}>
-            {assets.map((asset) => {
+            <Text style={styles.sectionTitle}>ALL HOLDINGS</Text>
+
+            {sortedAssets.map((asset) => {
               const priceData = getAssetWithPrice(asset);
+              const isProfit = priceData && priceData.gainLoss >= 0;
+
               return (
-                <Card key={asset.id} style={styles.assetCard}>
-                  <Card.Content>
-                    <View style={styles.assetHeader}>
-                      <View style={styles.assetInfo}>
-                        <View style={styles.assetTitleRow}>
-                          <Text variant="titleMedium" style={styles.assetName}>
-                            {asset.name}
-                          </Text>
-                          <Chip 
-                            mode="flat" 
-                            style={[styles.typeChip, { backgroundColor: getTypeColor(asset.type) }]}
-                            textStyle={styles.chipText}
-                          >
-                            {asset.type}
-                          </Chip>
-                        </View>
-                        <Text variant="bodyLarge" style={styles.assetSymbol}>
-                          {asset.symbol}
-                        </Text>
-                      </View>
-                      <IconButton
-                        icon="delete"
-                        size={24}
-                        onPress={() => handleDeletePress(asset)}
-                      />
+                <TouchableOpacity
+                  key={asset.id}
+                  style={styles.assetCard}
+                  onPress={() => router.push(`/asset-detail?id=${asset.id}`)}
+                  activeOpacity={0.7}
+                >
+                  {/* Asset Header */}
+                  <View style={styles.assetHeader}>
+                    <View style={styles.assetIcon}>
+                      <Text style={styles.assetIconText}>
+                        {asset.symbol.substring(0, 2).toUpperCase()}
+                      </Text>
                     </View>
-                    
-                    <Divider style={styles.divider} />
-                    
-                    <View style={styles.assetDetails}>
-                      <View style={styles.detailRow}>
-                        <Text variant="bodyMedium" style={styles.detailLabel}>
-                          Quantity:
-                        </Text>
-                        <Text variant="bodyMedium" style={styles.detailValue}>
-                          {asset.quantity}
-                        </Text>
+
+                    <View style={styles.assetInfo}>
+                      <View style={styles.assetTitleRow}>
+                        <Text style={styles.assetSymbol}>{asset.symbol}</Text>
+                        <View style={styles.typeBadge}>
+                          <Text style={styles.typeLabel}>{asset.type}</Text>
+                        </View>
                       </View>
-                      
-                      <View style={styles.detailRow}>
-                        <Text variant="bodyMedium" style={styles.detailLabel}>
-                          Purchase Price:
-                        </Text>
-                        <Text variant="bodyMedium" style={styles.detailValue}>
+                      <Text style={styles.assetName}>{asset.name}</Text>
+                    </View>
+
+                    <IconButton
+                      icon="delete-outline"
+                      size={20}
+                      iconColor={colors.textSecondary}
+                      onPress={() => handleDeletePress(asset)}
+                      style={styles.deleteButton}
+                    />
+                  </View>
+
+                  {/* Divider */}
+                  <View style={styles.divider} />
+
+                  {/* Asset Details Grid */}
+                  <View style={styles.detailsGrid}>
+                    {/* Left Column */}
+                    <View style={styles.detailColumn}>
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>QUANTITY</Text>
+                        <Text style={styles.detailValue}>{formatNumber(asset.quantity)}</Text>
+                      </View>
+
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>PURCHASE PRICE</Text>
+                        <Text style={styles.detailValue}>
                           {formatCurrency(asset.purchase_price)}
                         </Text>
                       </View>
-                      
-                      {priceData && (
-                        <>
-                          <View style={styles.detailRow}>
-                            <Text variant="bodyMedium" style={styles.detailLabel}>
-                              Current Price:
-                            </Text>
-                            <Text variant="bodyMedium" style={styles.detailValue}>
-                              {formatCurrency(priceData.currentPrice)}
-                            </Text>
-                          </View>
-                          
-                          <View style={styles.detailRow}>
-                            <Text variant="bodyMedium" style={styles.detailLabel}>
-                              Current Value:
-                            </Text>
-                            <Text variant="titleMedium" style={styles.detailValueBold}>
-                              {formatCurrency(priceData.currentValue)}
-                            </Text>
-                          </View>
-                          
-                          <View style={styles.detailRow}>
-                            <Text variant="bodyMedium" style={styles.detailLabel}>
-                              Gain/Loss:
-                            </Text>
-                            <Text 
-                              variant="titleMedium" 
-                              style={[
-                                styles.detailValueBold,
-                                { color: priceData.gainLoss >= 0 ? '#4CAF50' : '#F44336' }
-                              ]}
-                            >
-                              {formatCurrency(priceData.gainLoss)} ({formatPercent(priceData.gainLossPercent)})
-                            </Text>
-                          </View>
-                          
-                          {priceData.lastPriceUpdate && (
-                            <Text variant="bodySmall" style={styles.lastUpdate}>
-                              Last updated: {new Date(priceData.lastPriceUpdate).toLocaleTimeString()}
-                            </Text>
-                          )}
-                        </>
-                      )}
-                      
-                      {!priceData && (
-                        <View style={styles.noPriceContainer}>
-                          <Text variant="bodySmall" style={styles.noPriceText}>
-                            Price data unavailable
+
+                      <View style={styles.detailItem}>
+                        <Text style={styles.detailLabel}>COST BASIS</Text>
+                        <Text style={styles.detailValue}>
+                          {formatCurrency(asset.quantity * asset.purchase_price)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Right Column */}
+                    {priceData ? (
+                      <View style={styles.detailColumn}>
+                        <View style={styles.detailItem}>
+                          <Text style={styles.detailLabel}>CURRENT PRICE</Text>
+                          <Text style={styles.detailValue}>
+                            {formatCurrency(priceData.currentPrice)}
                           </Text>
                         </View>
-                      )}
+
+                        <View style={styles.detailItem}>
+                          <Text style={styles.detailLabel}>CURRENT VALUE</Text>
+                          <Text style={styles.detailValueLarge}>
+                            {formatCurrency(priceData.currentValue)}
+                          </Text>
+                        </View>
+
+                        <View style={styles.detailItem}>
+                          <Text style={styles.detailLabel}>GAIN/LOSS</Text>
+                          <View style={styles.gainLossRow}>
+                            <Text
+                              style={[
+                                styles.detailValueLarge,
+                                { color: isProfit ? colors.profit : colors.loss }
+                              ]}
+                            >
+                              {formatCurrency(priceData.gainLoss)}
+                            </Text>
+                            <View style={[
+                              styles.percentBadge,
+                              { backgroundColor: isProfit ? colors.profitBg : colors.lossBg }
+                            ]}>
+                              <IconButton
+                                icon={isProfit ? 'trending-up' : 'trending-down'}
+                                size={12}
+                                iconColor={isProfit ? colors.profit : colors.loss}
+                                style={styles.trendIcon}
+                              />
+                              <Text style={[
+                                styles.percentText,
+                                { color: isProfit ? colors.profit : colors.loss }
+                              ]}>
+                                {formatPercent(priceData.gainLossPercent)}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      </View>
+                    ) : (
+                      <View style={styles.detailColumn}>
+                        <View style={styles.noPriceContainer}>
+                          <IconButton
+                            icon="alert-circle-outline"
+                            size={24}
+                            iconColor={colors.textTertiary}
+                          />
+                          <Text style={styles.noPriceText}>Price data unavailable</Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Last Update Time */}
+                  {priceData?.lastPriceUpdate && (
+                    <View style={styles.updateInfo}>
+                      <IconButton
+                        icon="clock-outline"
+                        size={12}
+                        iconColor={colors.textTertiary}
+                        style={styles.clockIcon}
+                      />
+                      <Text style={styles.updateText}>
+                        Last updated {new Date(priceData.lastPriceUpdate).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </Text>
                     </View>
-                  </Card.Content>
-                </Card>
+                  )}
+                </TouchableOpacity>
               );
             })}
           </View>
         )}
+
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacer} />
       </ScrollView>
 
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => router.push('/add-asset')}
-        label="Add Asset"
-      />
-
+      {/* Delete Confirmation Dialog */}
       <Portal>
-        <Dialog visible={deleteDialogVisible} onDismiss={() => setDeleteDialogVisible(false)}>
-          <Dialog.Title>Delete Asset</Dialog.Title>
+        <Dialog
+          visible={deleteDialogVisible}
+          onDismiss={() => setDeleteDialogVisible(false)}
+          style={styles.dialog}
+        >
+          <Dialog.Title style={styles.dialogTitle}>DELETE ASSET</Dialog.Title>
           <Dialog.Content>
-            <Paragraph>
-              Are you sure you want to delete {assetToDelete?.name} ({assetToDelete?.symbol})?
-            </Paragraph>
-            <Paragraph>This action cannot be undone.</Paragraph>
+            <Text style={styles.dialogText}>
+              Are you sure you want to delete <Text style={styles.dialogAssetName}>{assetToDelete?.name}</Text> ({assetToDelete?.symbol})?
+            </Text>
+            <Text style={styles.dialogWarning}>This action cannot be undone.</Text>
           </Dialog.Content>
-          <Dialog.Actions>
-            <Button onPress={() => setDeleteDialogVisible(false)}>Cancel</Button>
-            <Button onPress={handleDeleteConfirm} textColor={theme.colors.error}>
-              Delete
-            </Button>
+          <Dialog.Actions style={styles.dialogActions}>
+            <TouchableOpacity
+              onPress={() => setDeleteDialogVisible(false)}
+              style={styles.dialogButton}
+            >
+              <Text style={styles.dialogButtonTextCancel}>CANCEL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handleDeleteConfirm}
+              style={[styles.dialogButton, styles.dialogButtonDelete]}
+            >
+              <Text style={styles.dialogButtonTextDelete}>DELETE</Text>
+            </TouchableOpacity>
           </Dialog.Actions>
         </Dialog>
       </Portal>
@@ -360,75 +413,183 @@ export default function AssetsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.white,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+  },
   scrollView: {
     flex: 1,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 16,
+    backgroundColor: colors.white,
+  },
+  greeting: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 8,
   },
   title: {
+    fontSize: 32,
     fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  subtitle: {
-    opacity: 0.7,
+    color: colors.black,
+    letterSpacing: -1.5,
   },
   summaryCard: {
-    margin: 16,
-    backgroundColor: '#1E88E5',
+    marginHorizontal: 24,
+    marginBottom: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    borderRadius: 20,
+    backgroundColor: colors.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  summaryTitle: {
-    color: 'white',
+  summaryLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   totalValue: {
-    color: 'white',
-    fontWeight: 'bold',
-    marginBottom: 16,
+    fontSize: 40,
+    fontWeight: '800',
+    color: colors.black,
+    letterSpacing: -2,
+    marginBottom: 24,
   },
-  summaryRow: {
+  summaryGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   summaryItem: {
     flex: 1,
   },
-  summaryLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    marginBottom: 4,
+  summaryDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+    marginHorizontal: 16,
   },
-  gainLoss: {
-    fontWeight: 'bold',
+  metricLabel: {
+    fontSize: 10,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
-  priceUpdateIndicator: {
-    flexDirection: 'row',
+  metricValue: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.black,
+    letterSpacing: -0.5,
+  },
+  emptyContainer: {
     alignItems: 'center',
-    marginTop: 12,
+    paddingVertical: 80,
+    paddingHorizontal: 32,
   },
-  priceUpdateText: {
-    marginLeft: 8,
-    color: 'rgba(255,255,255,0.7)',
+  emptyIcon: {
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  emptyButton: {
+    backgroundColor: colors.black,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  emptyButtonText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.white,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   assetsList: {
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: 24,
+  },
+  sectionTitle: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 16,
   },
   assetCard: {
-    marginBottom: 8,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   assetHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  assetIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: colors.gray200,
+    backgroundColor: colors.gray50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  assetIconText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: 0.5,
   },
   assetInfo: {
     flex: 1,
@@ -439,75 +600,173 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 4,
   },
-  assetName: {
-    fontWeight: '600',
-  },
   assetSymbol: {
-    opacity: 0.8,
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.black,
+    letterSpacing: -0.5,
   },
-  typeChip: {
-    height: 24,
-  },
-  chipText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  divider: {
-    marginVertical: 12,
-  },
-  assetDetails: {
-    gap: 8,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  detailLabel: {
-    opacity: 0.7,
-  },
-  detailValue: {
-    fontWeight: '500',
-  },
-  detailValueBold: {
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-  lastUpdate: {
-    opacity: 0.5,
-    marginTop: 8,
-  },
-  noPriceContainer: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: '#FFF3E0',
+  typeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 4,
   },
-  noPriceText: {
-    color: '#E65100',
+  typeLabel: {
+    fontSize: 9,
+    letterSpacing: 0.5,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
   },
-  emptyCard: {
-    margin: 16,
-    backgroundColor: 'white',
+  assetName: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  emptyContent: {
-    alignItems: 'center',
-    paddingVertical: 32,
+  deleteButton: {
+    margin: 0,
   },
-  emptyTitle: {
-    marginBottom: 8,
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginBottom: 16,
+  },
+  detailsGrid: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  detailColumn: {
+    flex: 1,
+    gap: 16,
+  },
+  detailItem: {
+    gap: 6,
+  },
+  detailLabel: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+  },
+  detailValue: {
+    fontSize: 14,
     fontWeight: '600',
+    color: colors.black,
+    letterSpacing: -0.3,
   },
-  emptyText: {
-    opacity: 0.7,
+  detailValueLarge: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: -0.5,
+  },
+  gainLossRow: {
+    gap: 8,
+  },
+  percentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingRight: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  trendIcon: {
+    margin: 0,
+    padding: 0,
+  },
+  percentText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    letterSpacing: 0.3,
+  },
+  noPriceContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  noPriceText: {
+    fontSize: 13,
+    color: colors.textTertiary,
+    fontStyle: 'italic',
+  },
+  updateInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  clockIcon: {
+    margin: 0,
+    marginRight: 4,
+  },
+  updateText: {
+    fontSize: 11,
+    color: colors.textTertiary,
+  },
+  bottomSpacer: {
+    height: 32,
+  },
+  dialog: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+  },
+  dialogTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  dialogText: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  dialogAssetName: {
+    fontWeight: 'bold',
+    color: colors.black,
+  },
+  dialogWarning: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 8,
+  },
+  dialogActions: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  dialogButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  dialogButtonDelete: {
+    backgroundColor: colors.loss,
+    borderColor: colors.loss,
+  },
+  dialogButtonTextCancel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
     textAlign: 'center',
-    paddingHorizontal: 32,
   },
-  fab: {
-    position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
+  dialogButtonTextDelete: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.white,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    textAlign: 'center',
   },
 });

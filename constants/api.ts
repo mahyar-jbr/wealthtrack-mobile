@@ -1,4 +1,4 @@
-export const API_BASE_URL = 'https://wealthtrack-backend-production.up.railway.app';
+export const API_BASE_URL = 'http://10.24.167.207:3000';
 
 export const API_ENDPOINTS = {
   AUTH: {

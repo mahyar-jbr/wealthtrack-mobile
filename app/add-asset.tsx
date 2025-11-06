@@ -1,26 +1,18 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { 
-  Text, 
-  TextInput, 
-  Button, 
-  SegmentedButtons, 
-  Card,
-  HelperText,
-  ActivityIndicator,
-  Appbar
-} from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { Text, TextInput, ActivityIndicator, IconButton } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { assetService } from '../services/assets';
-import { AssetType } from '../types/asset';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { assetService } from '../services/assets';
+import { AssetType } from '../types/asset';
+import { colors } from '../constants/theme';
 
 export default function AddAssetScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  
+
   // Form fields
   const [assetType, setAssetType] = useState<AssetType>('STOCK');
   const [symbol, setSymbol] = useState('');
@@ -116,174 +108,287 @@ export default function AddAssetScreen() {
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <Appbar.Header>
-        <Appbar.BackAction onPress={() => router.back()} />
-        <Appbar.Content title="Add New Asset" />
-      </Appbar.Header>
+  const totalInvestment = quantity && purchasePrice
+    ? parseFloat(quantity) * parseFloat(purchasePrice)
+    : 0;
 
-      <KeyboardAvoidingView 
+  const assetTypes: { value: AssetType; label: string; icon: string }[] = [
+    { value: 'STOCK', label: 'Stock', icon: 'chart-line' },
+    { value: 'CRYPTO', label: 'Crypto', icon: 'bitcoin' },
+    { value: 'ETF', label: 'ETF', icon: 'chart-box' },
+    { value: 'BOND', label: 'Bond', icon: 'certificate' },
+  ];
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <IconButton
+            icon="arrow-left"
+            iconColor={colors.black}
+            size={24}
+            onPress={() => router.back()}
+            style={styles.backButton}
+          />
+          <View>
+            <Text style={styles.greeting}>ADD NEW ASSET</Text>
+            <Text style={styles.title}>Build Your Portfolio</Text>
+          </View>
+        </View>
+      </View>
+
+      <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView style={styles.scrollView}>
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Asset Type
-              </Text>
-              <SegmentedButtons
-                value={assetType}
-                onValueChange={(value) => setAssetType(value as AssetType)}
-                buttons={[
-                  { value: 'STOCK', label: 'Stock' },
-                  { value: 'CRYPTO', label: 'Crypto' },
-                  { value: 'ETF', label: 'ETF' },
-                ]}
-                style={styles.segmentedButtons}
-              />
-            </Card.Content>
-          </Card>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Asset Type Selection */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>SELECT ASSET TYPE</Text>
+            <View style={styles.typeGrid}>
+              {assetTypes.map((type) => (
+                <TouchableOpacity
+                  key={type.value}
+                  style={[
+                    styles.typeCard,
+                    assetType === type.value && styles.typeCardActive
+                  ]}
+                  onPress={() => setAssetType(type.value)}
+                >
+                  <IconButton
+                    icon={type.icon}
+                    iconColor={assetType === type.value ? colors.white : colors.black}
+                    size={24}
+                    style={styles.typeIcon}
+                  />
+                  <Text style={[
+                    styles.typeLabel,
+                    assetType === type.value && styles.typeLabelActive
+                  ]}>
+                    {type.label}
+                  </Text>
+                  {assetType === type.value && (
+                    <View style={styles.checkmark}>
+                      <IconButton
+                        icon="check-circle"
+                        iconColor={colors.white}
+                        size={16}
+                      />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
 
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Asset Details
-              </Text>
+          {/* Asset Details */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>ASSET DETAILS</Text>
 
+            {/* Symbol Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>SYMBOL *</Text>
               <TextInput
-                label="Symbol"
                 value={symbol}
-                onChangeText={setSymbol}
+                onChangeText={(text) => {
+                  setSymbol(text);
+                  if (errors.symbol) setErrors({ ...errors, symbol: '' });
+                }}
                 mode="outlined"
                 placeholder={getPlaceholderSymbol()}
                 autoCapitalize="characters"
-                error={!!errors.symbol}
+                outlineColor={errors.symbol ? colors.loss : colors.border}
+                activeOutlineColor={errors.symbol ? colors.loss : colors.black}
+                textColor={colors.black}
                 style={styles.input}
+                outlineStyle={styles.inputOutline}
               />
-              <HelperText type="error" visible={!!errors.symbol}>
-                {errors.symbol}
-              </HelperText>
+              {errors.symbol ? (
+                <Text style={styles.errorText}>{errors.symbol}</Text>
+              ) : null}
+            </View>
 
+            {/* Name Input */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>NAME *</Text>
               <TextInput
-                label="Name"
                 value={name}
-                onChangeText={setName}
+                onChangeText={(text) => {
+                  setName(text);
+                  if (errors.name) setErrors({ ...errors, name: '' });
+                }}
                 mode="outlined"
                 placeholder={getPlaceholderName()}
-                error={!!errors.name}
+                outlineColor={errors.name ? colors.loss : colors.border}
+                activeOutlineColor={errors.name ? colors.loss : colors.black}
+                textColor={colors.black}
                 style={styles.input}
+                outlineStyle={styles.inputOutline}
               />
-              <HelperText type="error" visible={!!errors.name}>
-                {errors.name}
-              </HelperText>
+              {errors.name ? (
+                <Text style={styles.errorText}>{errors.name}</Text>
+              ) : null}
+            </View>
 
-              <View style={styles.row}>
-                <View style={styles.halfInput}>
-                  <TextInput
-                    label="Quantity"
-                    value={quantity}
-                    onChangeText={setQuantity}
-                    mode="outlined"
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    error={!!errors.quantity}
-                  />
-                  <HelperText type="error" visible={!!errors.quantity}>
-                    {errors.quantity}
-                  </HelperText>
-                </View>
-
-                <View style={styles.halfInput}>
-                  <TextInput
-                    label="Purchase Price ($)"
-                    value={purchasePrice}
-                    onChangeText={setPurchasePrice}
-                    mode="outlined"
-                    keyboardType="decimal-pad"
-                    placeholder="0.00"
-                    error={!!errors.purchasePrice}
-                  />
-                  <HelperText type="error" visible={!!errors.purchasePrice}>
-                    {errors.purchasePrice}
-                  </HelperText>
-                </View>
-              </View>
-
-              <View style={styles.dateContainer}>
-                <Text variant="bodyMedium" style={styles.dateLabel}>
-                  Purchase Date
-                </Text>
-                <Button
-                  mode="outlined"
-                  onPress={() => setShowDatePicker(true)}
-                  style={styles.dateButton}
-                >
-                  {purchaseDate.toLocaleDateString()}
-                </Button>
-              </View>
-
-              {showDatePicker && (
-                <DateTimePicker
-                  value={purchaseDate}
-                  mode="date"
-                  display="default"
-                  onChange={(event, selectedDate) => {
-                    setShowDatePicker(false);
-                    if (selectedDate) {
-                      setPurchaseDate(selectedDate);
-                    }
+            {/* Quantity and Price Row */}
+            <View style={styles.row}>
+              <View style={styles.halfInput}>
+                <Text style={styles.inputLabel}>QUANTITY *</Text>
+                <TextInput
+                  value={quantity}
+                  onChangeText={(text) => {
+                    setQuantity(text);
+                    if (errors.quantity) setErrors({ ...errors, quantity: '' });
                   }}
-                  maximumDate={new Date()}
+                  mode="outlined"
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  outlineColor={errors.quantity ? colors.loss : colors.border}
+                  activeOutlineColor={errors.quantity ? colors.loss : colors.black}
+                  textColor={colors.black}
+                  style={styles.input}
+                  outlineStyle={styles.inputOutline}
                 />
-              )}
-            </Card.Content>
-          </Card>
+                {errors.quantity ? (
+                  <Text style={styles.errorText}>{errors.quantity}</Text>
+                ) : null}
+              </View>
 
-          <Card style={styles.summaryCard}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Summary
-              </Text>
-              {quantity && purchasePrice && (
-                <>
-                  <View style={styles.summaryRow}>
-                    <Text variant="bodyMedium">Total Investment:</Text>
-                    <Text variant="bodyLarge" style={styles.summaryValue}>
-                      ${(parseFloat(quantity) * parseFloat(purchasePrice)).toFixed(2)}
-                    </Text>
+              <View style={styles.halfInput}>
+                <Text style={styles.inputLabel}>PURCHASE PRICE (USD) *</Text>
+                <TextInput
+                  value={purchasePrice}
+                  onChangeText={(text) => {
+                    setPurchasePrice(text);
+                    if (errors.purchasePrice) setErrors({ ...errors, purchasePrice: '' });
+                  }}
+                  mode="outlined"
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  outlineColor={errors.purchasePrice ? colors.loss : colors.border}
+                  activeOutlineColor={errors.purchasePrice ? colors.loss : colors.black}
+                  textColor={colors.black}
+                  style={styles.input}
+                  outlineStyle={styles.inputOutline}
+                  left={<TextInput.Affix text="$" />}
+                />
+                {errors.purchasePrice ? (
+                  <Text style={styles.errorText}>{errors.purchasePrice}</Text>
+                ) : null}
+              </View>
+            </View>
+
+            {/* Purchase Date */}
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>PURCHASE DATE</Text>
+              <TouchableOpacity
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <IconButton
+                  icon="calendar-outline"
+                  iconColor={colors.textSecondary}
+                  size={20}
+                  style={styles.dateIcon}
+                />
+                <Text style={styles.dateText}>
+                  {purchaseDate.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </Text>
+                <IconButton
+                  icon="chevron-down"
+                  iconColor={colors.textSecondary}
+                  size={20}
+                  style={styles.dateIcon}
+                />
+              </TouchableOpacity>
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={purchaseDate}
+                mode="date"
+                display="default"
+                onChange={(event, selectedDate) => {
+                  setShowDatePicker(false);
+                  if (selectedDate) {
+                    setPurchaseDate(selectedDate);
+                  }
+                }}
+                maximumDate={new Date()}
+              />
+            )}
+          </View>
+
+          {/* Summary Card */}
+          {totalInvestment > 0 && (
+            <View style={styles.summarySection}>
+              <Text style={styles.sectionTitle}>INVESTMENT SUMMARY</Text>
+              <View style={styles.summaryCard}>
+                <View style={styles.summaryRow}>
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>QUANTITY</Text>
+                    <Text style={styles.summaryValue}>{parseFloat(quantity).toFixed(8)}</Text>
                   </View>
-                  <View style={styles.summaryRow}>
-                    <Text variant="bodyMedium">Average Price:</Text>
-                    <Text variant="bodyLarge" style={styles.summaryValue}>
+                  <View style={styles.summaryDivider} />
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>PRICE PER UNIT</Text>
+                    <Text style={styles.summaryValue}>
                       ${parseFloat(purchasePrice).toFixed(2)}
                     </Text>
                   </View>
+                </View>
+
+                <View style={styles.totalInvestmentContainer}>
+                  <Text style={styles.totalLabel}>TOTAL INVESTMENT</Text>
+                  <Text style={styles.totalValue}>
+                    ${totalInvestment.toFixed(2)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Action Buttons */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              onPress={handleSubmit}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.white} size="small" />
+              ) : (
+                <>
+                  <IconButton
+                    icon="plus-circle"
+                    iconColor={colors.white}
+                    size={20}
+                    style={styles.buttonIcon}
+                  />
+                  <Text style={styles.submitButtonText}>ADD TO PORTFOLIO</Text>
                 </>
               )}
-            </Card.Content>
-          </Card>
+            </TouchableOpacity>
 
-          <View style={styles.buttonContainer}>
-            <Button
-              mode="contained"
-              onPress={handleSubmit}
-              loading={loading}
-              disabled={loading}
-              style={styles.submitButton}
-            >
-              Add Asset
-            </Button>
-            <Button
-              mode="outlined"
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={() => router.back()}
               disabled={loading}
-              style={styles.cancelButton}
             >
-              Cancel
-            </Button>
+              <Text style={styles.cancelButtonText}>CANCEL</Text>
+            </TouchableOpacity>
           </View>
+
+          {/* Bottom Spacing */}
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -293,7 +398,38 @@ export default function AddAssetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.white,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    backgroundColor: colors.white,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backButton: {
+    margin: 0,
+  },
+  greeting: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: -0.5,
   },
   keyboardView: {
     flex: 1,
@@ -301,19 +437,99 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  card: {
-    margin: 16,
-    marginBottom: 8,
+  section: {
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  summarySection: {
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    backgroundColor: colors.gray50,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   sectionTitle: {
-    fontWeight: '600',
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
     marginBottom: 16,
   },
-  segmentedButtons: {
+  typeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  typeCard: {
+    flex: 1,
+    minWidth: '45%',
+    aspectRatio: 1.5,
+    borderWidth: 1.5,
+    borderColor: colors.gray200,
+    borderRadius: 16,
+    backgroundColor: colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  typeCardActive: {
+    backgroundColor: colors.black,
+    borderColor: colors.black,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  typeIcon: {
+    margin: 0,
+    marginBottom: 8,
+  },
+  typeLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  typeLabelActive: {
+    color: colors.white,
+  },
+  checkmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  inputContainer: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
     marginBottom: 8,
   },
   input: {
-    marginBottom: 8,
+    backgroundColor: colors.white,
+    fontSize: 15,
+  },
+  inputOutline: {
+    borderRadius: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    color: colors.loss,
+    marginTop: 4,
+    marginLeft: 4,
   },
   row: {
     flexDirection: 'row',
@@ -322,37 +538,130 @@ const styles = StyleSheet.create({
   halfInput: {
     flex: 1,
   },
-  dateContainer: {
-    marginTop: 16,
-  },
-  dateLabel: {
-    marginBottom: 8,
-    opacity: 0.7,
-  },
   dateButton: {
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.white,
+  },
+  dateIcon: {
+    margin: 0,
+  },
+  dateText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.black,
+    marginLeft: 8,
   },
   summaryCard: {
-    margin: 16,
-    marginBottom: 8,
-    backgroundColor: '#e3f2fd',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.gray200,
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
   },
   summaryRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  summaryItem: {
+    flex: 1,
+  },
+  summaryDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: colors.border,
+    marginHorizontal: 16,
+  },
+  summaryLabel: {
+    fontSize: 10,
+    letterSpacing: 0.5,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   summaryValue: {
+    fontSize: 16,
     fontWeight: 'bold',
+    color: colors.black,
+    letterSpacing: -0.5,
+  },
+  totalInvestmentContainer: {
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  totalLabel: {
+    fontSize: 11,
+    letterSpacing: 1,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  totalValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: colors.black,
+    letterSpacing: -2,
   },
   buttonContainer: {
-    padding: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
     gap: 12,
   },
   submitButton: {
-    paddingVertical: 8,
+    flexDirection: 'row',
+    backgroundColor: colors.black,
+    borderRadius: 12,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  buttonIcon: {
+    margin: 0,
+  },
+  submitButtonText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.white,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   cancelButton: {
-    paddingVertical: 8,
+    borderWidth: 1.5,
+    borderColor: colors.gray200,
+    borderRadius: 12,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  bottomSpacer: {
+    height: 32,
   },
 });

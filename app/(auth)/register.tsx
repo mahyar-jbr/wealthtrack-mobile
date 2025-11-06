@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, Card } from 'react-native-paper';
+import { TextInput, Button } from 'react-native-paper';
 import { Link } from 'expo-router';
 import { useAuth } from '../../contexts/AuthContext';
+import { colors } from '../../constants/theme';
 
 export default function RegisterScreen() {
   const [email, setEmail] = useState('');
@@ -57,77 +58,97 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container} 
+    <KeyboardAvoidingView
+      style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.content}>
+          {/* Logo */}
+          <View style={styles.logo}>
+            <Text style={styles.logoText}>W</Text>
+          </View>
+
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join WealthTrack to manage your investments</Text>
+          <Text style={styles.subtitle}>START TRACKING YOUR WEALTH</Text>
 
-          <Card style={styles.card}>
-            <Card.Content>
-              <View style={styles.row}>
-                <TextInput
-                  label="First Name"
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  mode="outlined"
-                  autoCapitalize="words"
-                  style={[styles.input, styles.halfInput]}
-                />
-                <TextInput
-                  label="Last Name"
-                  value={lastName}
-                  onChangeText={setLastName}
-                  mode="outlined"
-                  autoCapitalize="words"
-                  style={[styles.input, styles.halfInput]}
-                />
-              </View>
-
+          <View style={styles.form}>
+            <View style={styles.row}>
               <TextInput
-                label="Email *"
-                value={email}
-                onChangeText={setEmail}
+                label="First Name"
+                value={firstName}
+                onChangeText={setFirstName}
                 mode="outlined"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                style={styles.input}
+                autoCapitalize="words"
+                outlineColor={colors.border}
+                activeOutlineColor={colors.black}
+                textColor={colors.black}
+                style={[styles.input, styles.halfInput]}
               />
-
               <TextInput
-                label="Password *"
-                value={password}
-                onChangeText={setPassword}
+                label="Last Name"
+                value={lastName}
+                onChangeText={setLastName}
                 mode="outlined"
-                secureTextEntry
-                autoComplete="password-new"
-                style={styles.input}
+                autoCapitalize="words"
+                outlineColor={colors.border}
+                activeOutlineColor={colors.black}
+                textColor={colors.black}
+                style={[styles.input, styles.halfInput]}
               />
+            </View>
 
-              <TextInput
-                label="Confirm Password *"
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                mode="outlined"
-                secureTextEntry
-                style={styles.input}
-              />
+            <TextInput
+              label="Email *"
+              value={email}
+              onChangeText={setEmail}
+              mode="outlined"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              outlineColor={colors.border}
+              activeOutlineColor={colors.black}
+              textColor={colors.black}
+              style={styles.input}
+            />
 
-              <Button
-                mode="contained"
-                onPress={handleRegister}
-                loading={loading}
-                disabled={loading}
-                style={styles.button}
-              >
-                {loading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-            </Card.Content>
-          </Card>
+            <TextInput
+              label="Password *"
+              value={password}
+              onChangeText={setPassword}
+              mode="outlined"
+              secureTextEntry
+              autoComplete="password-new"
+              outlineColor={colors.border}
+              activeOutlineColor={colors.black}
+              textColor={colors.black}
+              style={styles.input}
+            />
+
+            <TextInput
+              label="Confirm Password *"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              mode="outlined"
+              secureTextEntry
+              outlineColor={colors.border}
+              activeOutlineColor={colors.black}
+              textColor={colors.black}
+              style={styles.input}
+            />
+
+            <Button
+              mode="contained"
+              onPress={handleRegister}
+              loading={loading}
+              disabled={loading}
+              buttonColor={colors.black}
+              textColor={colors.white}
+              style={styles.button}
+            >
+              {loading ? 'CREATING...' : 'CREATE ACCOUNT'}
+            </Button>
+          </View>
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
@@ -144,7 +165,7 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: colors.white,
   },
   scrollContent: {
     flexGrow: 1,
@@ -152,58 +173,84 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'center',
-    padding: 20,
+    padding: 32,
     minHeight: '100%',
   },
+  logo: {
+    width: 72,
+    height: 72,
+    backgroundColor: colors.black,
+    alignSelf: 'center',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 40,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  logoText: {
+    fontSize: 40,
+    fontWeight: '800',
+    color: colors.white,
+    letterSpacing: -2,
+  },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
-    color: '#333',
+    color: colors.black,
+    letterSpacing: -1,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 11,
     textAlign: 'center',
-    marginBottom: 40,
-    color: '#666',
+    marginBottom: 48,
+    color: colors.textSecondary,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
-  card: {
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  form: {
+    gap: 8,
   },
   row: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   input: {
-    marginBottom: 16,
+    backgroundColor: colors.white,
   },
   halfInput: {
-    width: '48%',
+    flex: 1,
   },
   button: {
-    marginTop: 8,
-    paddingVertical: 8,
+    marginTop: 16,
+    borderRadius: 12,
+    paddingVertical: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 30,
+    marginTop: 32,
   },
   footerText: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: 15,
+    color: colors.textSecondary,
   },
   link: {
     textDecorationLine: 'none',
   },
   linkText: {
-    fontSize: 16,
-    color: '#2196F3',
+    fontSize: 15,
+    color: colors.black,
     fontWeight: '600',
   },
 });
